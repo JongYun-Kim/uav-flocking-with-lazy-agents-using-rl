@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+*.pyo
+*.log
+
+# Checkpoints (large binary files, tracked separately)
+checkpoints/
+
+# Local working files
+CLEANUP_LOG.md
+tests/
