@@ -1,3 +1,5 @@
+import argparse
+
 import ray
 from ray import tune
 from ray.rllib.models import ModelCatalog
@@ -5,10 +7,22 @@ from ray.tune.registry import register_env
 
 from env.envs import LazyAgentsCentralized, LazyAgentsCentralizedPendReward
 from models.lazy_allocator import MyRLlibTorchWrapper, MyMLPModel
+from utils.seeding import set_global_seed, enable_strict_determinism
 from ray.rllib.algorithms.callbacks import DefaultCallbacks
 
 
 class MyCallbacks(DefaultCallbacks):
+    def on_algorithm_init(self, *, algorithm, **kwargs):
+        # The trial trains in a separate process (a Ray actor) from the launching driver, so the
+        # driver's determinism setup does not reach it. The real fix is in
+        # utils.seeding.patch_rllib_determinism(), installed on import of utils.seeding -- and
+        # this callback's reference to enable_strict_determinism is what makes the actor import
+        # utils.seeding before its Algorithm.setup() runs. The patch corrects RLlib's malformed
+        # CUBLAS_WORKSPACE_CONFIG and enables use_deterministic_algorithms at the right moment
+        # (before the policy's first GPU matmul). This call is an idempotent belt-and-suspenders
+        # re-assertion inside the trainer process.
+        enable_strict_determinism()
+
     def on_episode_start(self, worker, episode, **kwargs):
         episode.user_data["L1_reward_sum"] = 0
         episode.user_data["L2_reward_sum"] = 0
@@ -24,6 +38,16 @@ class MyCallbacks(DefaultCallbacks):
 
 
 if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(description="Train PPO (lazy_env) with seed control.")
+    parser.add_argument("--seed", type=int, default=42,
+                        help="Global RNG seed for reproducibility (default: 42).")
+    args = parser.parse_args()
+
+    # Establish driver-side determinism BEFORE ray.init / any CUDA context creation (so
+    # CUBLAS_WORKSPACE_CONFIG takes effect). RLlib also re-seeds each worker/env from
+    # config["seed"] below; this call is the idempotent, auditable driver-side counterpart.
+    set_global_seed(args.seed)
 
     do_debug = False
 
@@ -123,6 +147,12 @@ if __name__ == "__main__":
             "env": env_name,
             "env_config": env_config,
             "framework": "torch",
+            # --- Reproducibility: single seed from --seed (default 42). RLlib propagates
+            # this to the driver, every rollout worker, and every env (via env.seed()). ---
+            "seed": args.seed,
+            # For a multi-seed sweep, comment out the line above and use instead:
+            #   "seed": tune.grid_search([1, 2, 3]),
+            # (Avoid 0: it is falsy, so RLlib skips per-env env.seed() for seed 0.)
             "callbacks": MyCallbacks,
             "model": {
                 "custom_model": model_name_used,

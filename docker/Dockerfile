@@ -40,7 +40,7 @@ RUN add-apt-repository ppa:deadsnakes/ppa -y \
  && rm -rf /var/lib/apt/lists/*
 
 # fix python
-RUN curl -sS https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py \
+RUN curl -sS https://bootstrap.pypa.io/pip/3.9/get-pip.py -o /tmp/get-pip.py \
  && /usr/bin/python3.9 /tmp/get-pip.py \
  && rm -f /tmp/get-pip.py \
  && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 2 \
