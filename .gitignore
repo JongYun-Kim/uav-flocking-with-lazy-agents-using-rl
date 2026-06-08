@@ -4,7 +4,10 @@ __pycache__/
 *.log
 
 # Checkpoints (large binary files, tracked separately)
-checkpoints/
+checkpoint_00*/
+events.out.tfevents*
+progress.csv
+checkpoints/mlp_ablation_v3/
 
 # Local working files
 CLEANUP_LOG.md
