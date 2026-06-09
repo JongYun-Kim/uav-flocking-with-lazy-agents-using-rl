@@ -42,12 +42,20 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train PPO (lazy_env) with seed control.")
     parser.add_argument("--seed", type=int, default=42,
                         help="Global RNG seed for reproducibility (default: 42).")
+    parser.add_argument("--seeds", type=int, nargs="+", default=None,
+                        help="If given (e.g. --seeds 1 2 1 2), grid-search over these seeds as "
+                             "parallel Tune trials -- one checkpoint per trial. Used for "
+                             "reproducibility checks (same seed -> identical model). Overrides "
+                             "--seed. Duplicates are allowed and produce distinct trials.")
     args = parser.parse_args()
+
+    # One seed -> single reproducible run; many -> a grid_search of parallel trials.
+    seeds = args.seeds if args.seeds else [args.seed]
 
     # Establish driver-side determinism BEFORE ray.init / any CUDA context creation (so
     # CUBLAS_WORKSPACE_CONFIG takes effect). RLlib also re-seeds each worker/env from
     # config["seed"] below; this call is the idempotent, auditable driver-side counterpart.
-    set_global_seed(args.seed)
+    set_global_seed(seeds[0])
 
     do_debug = False
 
@@ -57,7 +65,7 @@ if __name__ == "__main__":
 
     # register your custom environment
     num_agents_max = 20
-    num_agents_min = tune.grid_search([10, 20])
+    num_agents_min = 20
     env_config = {
         "num_agents_max": num_agents_max,  # Maximum number of agents
         "num_agents_min": num_agents_min,  # Minimum number of agents
@@ -85,8 +93,8 @@ if __name__ == "__main__":
     env_name = "lazy_env"
     register_env(env_name, lambda cfg: LazyAgentsCentralizedPendReward(cfg))
     # Add keys "w_vel" and "w_control" to the env_config
-    env_config["w_vel"] = tune.grid_search([0.4, 0.2, 0.1, 0.05])
-    env_config["w_control"] = tune.grid_search([0.001, 0.005, 0.01, 0.02])
+    env_config["w_vel"] = 0.18
+    env_config["w_control"] = 0.018
 
     # register your custom model
     custom_model_config_transformer = {
@@ -105,7 +113,7 @@ if __name__ == "__main__":
         "dr_rate": 0,
         "norm_eps": 1e-5,
         "is_bias": False,
-        "share_layers": tune.grid_search([True, False]),
+        "share_layers": True,
         "use_residual_in_decoder": True,
         "use_FNN_in_decoder": True,
         "use_deterministic_action_dist": True,
@@ -137,10 +145,12 @@ if __name__ == "__main__":
     # train your custom model with PPO
     tune.run(
         "PPO",
-        name="expensive_tune_pend_rwd",
-        stop={"training_iteration": 300},
+        name="test_seed_control",
+        stop={"training_iteration": 80},
         checkpoint_freq=1,
-        keep_checkpoints_num=10,
+        keep_checkpoints_num=None,  # keep ALL checkpoints: every trial retains the same set of
+                                    # iterations, so the verifier can compare the same iteration
+                                    # across seeds without best-by-reward pruning removing it.
         checkpoint_at_end=True,
         checkpoint_score_attr="episode_reward_mean",
         config={
@@ -149,9 +159,8 @@ if __name__ == "__main__":
             "framework": "torch",
             # --- Reproducibility: single seed from --seed (default 42). RLlib propagates
             # this to the driver, every rollout worker, and every env (via env.seed()). ---
-            "seed": args.seed,
-            # For a multi-seed sweep, comment out the line above and use instead:
-            #   "seed": tune.grid_search([1, 2, 3]),
+            "seed": tune.grid_search(seeds) if len(seeds) > 1 else seeds[0],
+            # Single --seed -> a scalar; --seeds 1 2 1 2 -> a grid_search of parallel trials.
             # (Avoid 0: it is falsy, so RLlib skips per-env env.seed() for seed 0.)
             "callbacks": MyCallbacks,
             "model": {
@@ -160,20 +169,23 @@ if __name__ == "__main__":
             },
             "num_gpus": 0.5,
             "num_workers": 7,
-            "num_envs_per_worker": 3,
+            "num_envs_per_worker": 2,
+            # Explicit to match the trained checkpoint: RLlib 2.1.0 defaults batch_mode to
+            # "truncate_episodes", but the checkpoint was trained with "complete_episodes".
+            "batch_mode": "complete_episodes",
             "rollout_fragment_length": 1000,
-            "train_batch_size": 21000,
-            "sgd_minibatch_size": tune.grid_search([128, 512]),
-            "num_sgd_iter": 38,
-            "lr": tune.grid_search([1e-5, 4e-5]),
+            "train_batch_size": 14000,
+            "sgd_minibatch_size": 256,
+            "num_sgd_iter": 36,
+            "lr": 3e-5,
             # Must be fine-tuned when sharing vf-policy layers
-            "vf_loss_coeff": 0.2,
+            "vf_loss_coeff": 0.1,
             "use_critic": True,
             "use_gae": True,
-            "gamma": tune.grid_search([0.99, 0.992, 0.995]),
-            "lambda": tune.grid_search([0.9, 0.96, 0.98]),
+            "gamma": 0.992,
+            "lambda": 0.96,
             "kl_coeff": 0,  # no PPO penalty term; we use PPO-clip anyway; if none zero, be careful Nan in tensors!
-            "clip_param": tune.grid_search([0.2, 0.24, 0.3]),
+            "clip_param": 0.25,
             "vf_clip_param": 20,
             "grad_clip": 40.0,
             "kl_target": 0.01,
