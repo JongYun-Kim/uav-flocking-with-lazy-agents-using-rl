@@ -9,7 +9,11 @@ RESULTS_DIR = os.path.join(THIS_DIR, "results")
 
 # Comparison 1: fixed 20 UAVs
 NUM_AGENTS = 20
-SEEDS = list(range(1, 1001))  # 1000 episodes
+SEEDS = list(range(1, 1001))  # 1000 episodes (reporting / "test" seeds)
+
+# Reproducibility study: checkpoints are SELECTED on these validation env seeds,
+# deliberately disjoint from the reporting seeds above, then reported on SEEDS.
+VALIDATION_SEEDS = list(range(5001, 5101))  # 100 episodes
 
 # Comparison 2: scalability sweep
 SCALABILITY_AGENTS = [8, 16, 32, 64, 128, 256, 512, 1024]

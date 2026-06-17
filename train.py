@@ -47,6 +47,10 @@ if __name__ == "__main__":
                              "parallel Tune trials -- one checkpoint per trial. Used for "
                              "reproducibility checks (same seed -> identical model). Overrides "
                              "--seed. Duplicates are allowed and produce distinct trials.")
+    parser.add_argument("--iters", type=int, default=100,
+                        help="Number of PPO training iterations (default: 100). Checkpoints are "
+                             "saved every iteration, so the best one is chosen post-hoc by "
+                             "validation (see experiments/reproducibility).")
     args = parser.parse_args()
 
     # One seed -> single reproducible run; many -> a grid_search of parallel trials.
@@ -146,7 +150,7 @@ if __name__ == "__main__":
     tune.run(
         "PPO",
         name="test_seed_control",
-        stop={"training_iteration": 80},
+        stop={"training_iteration": args.iters},
         checkpoint_freq=1,
         keep_checkpoints_num=None,  # keep ALL checkpoints: every trial retains the same set of
                                     # iterations, so the verifier can compare the same iteration

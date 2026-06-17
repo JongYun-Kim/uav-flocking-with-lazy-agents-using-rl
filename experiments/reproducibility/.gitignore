@@ -1,0 +1,3 @@
+# Generated evaluation data (screening JSONL, selected.json, scalability JSONs, figures).
+# The scripts are tracked; their outputs are not.
+results/
