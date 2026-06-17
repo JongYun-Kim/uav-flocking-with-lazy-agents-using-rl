@@ -1,0 +1,444 @@
+{
+  "meta": {
+    "description": "Inference latency vs flock size for the trained Transformer policy (reviewer revision).",
+    "variants": [
+      "RL",
+      "RL_pure_forward",
+      "cudagraph_fp32"
+    ],
+    "agents": [
+      8,
+      16,
+      20,
+      32,
+      64,
+      128,
+      256,
+      512,
+      1024
+    ],
+    "num_rollouts": 3,
+    "steps_per_rollout": null,
+    "adaptive_steps": true,
+    "warmup_steps": 200,
+    "base_seed": 4242,
+    "max_time_step": 2000,
+    "device": "cuda",
+    "dt_s": 0.1,
+    "realtime_budget_us": 100000.0,
+    "complexity_note": "Encoder self-attention is O(n^2). RL_pure_forward and cudagraph_fp32 measure the NN forward where that term lives; RL adds (n-independent) RLlib preprocessing/sampling overhead on top.",
+    "timing": "perf_counter_ns; cuda-synchronised; only the action-selection call is timed (env.step executed but not counted). Single process, single GPU, sequential."
+  },
+  "host_info": {
+    "hostname": "46a7417895e5",
+    "machine": "x86_64",
+    "python": "3.9.5",
+    "torch": "1.12.1+cu113",
+    "cuda_available": true,
+    "gpu_name": "NVIDIA GeForce RTX 4090",
+    "gpu_capability": [
+      8,
+      9
+    ],
+    "cuda_visible_devices": "0",
+    "num_cpus": 64,
+    "torch_num_threads": 4,
+    "torch_num_interop_threads": 4,
+    "cpu_model": "AMD Ryzen Threadripper PRO 7975WX 32-Cores"
+  },
+  "model_info": {
+    "total_params": 874497,
+    "trainable_params": 874497,
+    "policy_network_params": 857856,
+    "value_branch_params": 16641,
+    "value_network_params": 0,
+    "param_bytes": 3497988,
+    "buffer_bytes": 0,
+    "param_mb": 3.3359413146972656,
+    "state_dict_mb": 3.3359413146972656,
+    "dtype": "torch.float32",
+    "cuda_weights_mb": 3.33642578125,
+    "cuda_peak_inference_mb": 27.603515625,
+    "cuda_activation_mb": 24.26708984375
+  },
+  "results": {
+    "8": {
+      "num_agents": 8,
+      "num_rollouts": 3,
+      "steps_per_rollout": 2000,
+      "RL": {
+        "num_samples": 6000,
+        "mean_us": 1587.2909946666664,
+        "std_us": 49.29553054354488,
+        "median_us": 1571.394,
+        "p05_us": 1557.022,
+        "p95_us": 1689.01955,
+        "p99_us": 1764.5328400000008,
+        "min_us": 1548.169,
+        "max_us": 2521.159,
+        "inner_resets": 10
+      },
+      "RL_pure_forward": {
+        "num_samples": 6000,
+        "mean_us": 906.9204880000001,
+        "std_us": 47.2826925707809,
+        "median_us": 893.325,
+        "p05_us": 881.5210000000001,
+        "p95_us": 986.7345,
+        "p99_us": 1045.7412200000003,
+        "min_us": 871.236,
+        "max_us": 2046.221,
+        "inner_resets": 10
+      },
+      "cudagraph_fp32": {
+        "num_samples": 6000,
+        "mean_us": 183.58714516666663,
+        "std_us": 2.1758928041172294,
+        "median_us": 183.207,
+        "p05_us": 182.957,
+        "p95_us": 184.699,
+        "p99_us": 190.608,
+        "min_us": 182.606,
+        "max_us": 300.393,
+        "inner_resets": 10
+      },
+      "wall_clock_s": 22.037721872329712
+    },
+    "16": {
+      "num_agents": 16,
+      "num_rollouts": 3,
+      "steps_per_rollout": 2000,
+      "RL": {
+        "num_samples": 6000,
+        "mean_us": 1597.4835916666668,
+        "std_us": 59.49702612864184,
+        "median_us": 1579.045,
+        "p05_us": 1564.87355,
+        "p95_us": 1729.86705,
+        "p99_us": 1777.5472,
+        "min_us": 1555.861,
+        "max_us": 2861.553,
+        "inner_resets": 12
+      },
+      "RL_pure_forward": {
+        "num_samples": 6000,
+        "mean_us": 904.3576945000001,
+        "std_us": 25.17139153157361,
+        "median_us": 896.3045,
+        "p05_us": 885.7175,
+        "p95_us": 977.2060500000001,
+        "p99_us": 1001.85661,
+        "min_us": 874.902,
+        "max_us": 1310.67,
+        "inner_resets": 12
+      },
+      "cudagraph_fp32": {
+        "num_samples": 6000,
+        "mean_us": 186.66665483333333,
+        "std_us": 1.0522120409197386,
+        "median_us": 186.492,
+        "p05_us": 186.251,
+        "p95_us": 187.063,
+        "p99_us": 193.1125,
+        "min_us": 185.861,
+        "max_us": 209.767,
+        "inner_resets": 12
+      },
+      "wall_clock_s": 22.31462812423706
+    },
+    "20": {
+      "num_agents": 20,
+      "num_rollouts": 3,
+      "steps_per_rollout": 2000,
+      "RL": {
+        "num_samples": 6000,
+        "mean_us": 1604.5901743333334,
+        "std_us": 31.737182258510174,
+        "median_us": 1596.582,
+        "p05_us": 1585.52595,
+        "p95_us": 1643.7055500000001,
+        "p99_us": 1762.8187100000002,
+        "min_us": 1576.873,
+        "max_us": 2334.767,
+        "inner_resets": 9
+      },
+      "RL_pure_forward": {
+        "num_samples": 6000,
+        "mean_us": 921.9669521666666,
+        "std_us": 20.642102360713896,
+        "median_us": 916.429,
+        "p05_us": 906.369,
+        "p95_us": 949.4885,
+        "p99_us": 1015.6243000000001,
+        "min_us": 896.354,
+        "max_us": 1312.993,
+        "inner_resets": 9
+      },
+      "cudagraph_fp32": {
+        "num_samples": 6000,
+        "mean_us": 235.39416849999998,
+        "std_us": 4.321109618199531,
+        "median_us": 234.124,
+        "p05_us": 233.883,
+        "p95_us": 250.72945,
+        "p99_us": 251.079,
+        "min_us": 233.543,
+        "max_us": 259.692,
+        "inner_resets": 9
+      },
+      "wall_clock_s": 22.888717651367188
+    },
+    "32": {
+      "num_agents": 32,
+      "num_rollouts": 3,
+      "steps_per_rollout": 2000,
+      "RL": {
+        "num_samples": 6000,
+        "mean_us": 1638.4465178333335,
+        "std_us": 31.862798336785442,
+        "median_us": 1629.4415,
+        "p05_us": 1618.0145,
+        "p95_us": 1681.89,
+        "p99_us": 1790.7485900000001,
+        "min_us": 1608.21,
+        "max_us": 2486.457,
+        "inner_resets": 9
+      },
+      "RL_pure_forward": {
+        "num_samples": 6000,
+        "mean_us": 951.8762038333334,
+        "std_us": 15.789911724800684,
+        "median_us": 947.5365,
+        "p05_us": 939.48945,
+        "p95_us": 978.9599999999999,
+        "p99_us": 1022.3786100000001,
+        "min_us": 928.943,
+        "max_us": 1168.836,
+        "inner_resets": 9
+      },
+      "cudagraph_fp32": {
+        "num_samples": 6000,
+        "mean_us": 230.6694198333333,
+        "std_us": 4.181284417154155,
+        "median_us": 229.216,
+        "p05_us": 228.966,
+        "p95_us": 245.261,
+        "p99_us": 245.551,
+        "min_us": 228.575,
+        "max_us": 264.339,
+        "inner_resets": 9
+      },
+      "wall_clock_s": 23.727919101715088
+    },
+    "64": {
+      "num_agents": 64,
+      "num_rollouts": 3,
+      "steps_per_rollout": 2000,
+      "RL": {
+        "num_samples": 6000,
+        "mean_us": 1642.8073421666668,
+        "std_us": 29.788615804666303,
+        "median_us": 1633.858,
+        "p05_us": 1622.69195,
+        "p95_us": 1684.5750500000001,
+        "p99_us": 1809.4544899999999,
+        "min_us": 1612.105,
+        "max_us": 2009.866,
+        "inner_resets": 8
+      },
+      "RL_pure_forward": {
+        "num_samples": 6000,
+        "mean_us": 959.9256108333334,
+        "std_us": 25.877254558143537,
+        "median_us": 954.4515,
+        "p05_us": 946.7175,
+        "p95_us": 984.28905,
+        "p99_us": 1064.0483100000001,
+        "min_us": 934.982,
+        "max_us": 1520.437,
+        "inner_resets": 8
+      },
+      "cudagraph_fp32": {
+        "num_samples": 6000,
+        "mean_us": 258.2281816666666,
+        "std_us": 1.009042888544573,
+        "median_us": 258.07,
+        "p05_us": 257.819,
+        "p95_us": 258.57,
+        "p99_us": 264.82,
+        "min_us": 257.449,
+        "max_us": 274.915,
+        "inner_resets": 8
+      },
+      "wall_clock_s": 26.03984498977661
+    },
+    "128": {
+      "num_agents": 128,
+      "num_rollouts": 3,
+      "steps_per_rollout": 1000,
+      "RL": {
+        "num_samples": 3000,
+        "mean_us": 1678.655719,
+        "std_us": 25.34346277907942,
+        "median_us": 1671.275,
+        "p05_us": 1660.1079499999998,
+        "p95_us": 1717.83,
+        "p99_us": 1827.0709399999992,
+        "min_us": 1652.296,
+        "max_us": 1894.151,
+        "inner_resets": 2
+      },
+      "RL_pure_forward": {
+        "num_samples": 3000,
+        "mean_us": 1002.7966966666667,
+        "std_us": 19.94569756518373,
+        "median_us": 996.866,
+        "p05_us": 990.6659500000001,
+        "p95_us": 1028.724,
+        "p99_us": 1105.5146,
+        "min_us": 980.501,
+        "max_us": 1393.525,
+        "inner_resets": 2
+      },
+      "cudagraph_fp32": {
+        "num_samples": 3000,
+        "mean_us": 284.9152066666667,
+        "std_us": 1.0608229222540786,
+        "median_us": 284.74,
+        "p05_us": 284.46,
+        "p95_us": 285.241,
+        "p99_us": 291.50021,
+        "min_us": 283.999,
+        "max_us": 299.502,
+        "inner_resets": 2
+      },
+      "wall_clock_s": 17.901126861572266
+    },
+    "256": {
+      "num_agents": 256,
+      "num_rollouts": 3,
+      "steps_per_rollout": 1000,
+      "RL": {
+        "num_samples": 3000,
+        "mean_us": 1695.9477006666666,
+        "std_us": 43.70697433700521,
+        "median_us": 1683.7635,
+        "p05_us": 1671.615,
+        "p95_us": 1750.23705,
+        "p99_us": 1880.9504399999994,
+        "min_us": 1662.14,
+        "max_us": 2670.183,
+        "inner_resets": 3
+      },
+      "RL_pure_forward": {
+        "num_samples": 3000,
+        "mean_us": 1001.1309076666668,
+        "std_us": 32.991562707967915,
+        "median_us": 994.562,
+        "p05_us": 987.7915,
+        "p95_us": 1033.39055,
+        "p99_us": 1097.91,
+        "min_us": 976.124,
+        "max_us": 2288.346,
+        "inner_resets": 3
+      },
+      "cudagraph_fp32": {
+        "num_samples": 3000,
+        "mean_us": 337.862992,
+        "std_us": 3.1790957954469077,
+        "median_us": 337.63,
+        "p05_us": 337.239,
+        "p95_us": 338.481,
+        "p99_us": 344.1904,
+        "min_us": 336.759,
+        "max_us": 501.347,
+        "inner_resets": 3
+      },
+      "wall_clock_s": 34.49786877632141
+    },
+    "512": {
+      "num_agents": 512,
+      "num_rollouts": 3,
+      "steps_per_rollout": 500,
+      "RL": {
+        "num_samples": 1500,
+        "mean_us": 2391.68115,
+        "std_us": 58.898026046240254,
+        "median_us": 2371.297,
+        "p05_us": 2340.235,
+        "p95_us": 2509.36905,
+        "p99_us": 2596.47298,
+        "min_us": 2283.349,
+        "max_us": 2754.029,
+        "inner_resets": 0
+      },
+      "RL_pure_forward": {
+        "num_samples": 1500,
+        "mean_us": 1357.6378413333334,
+        "std_us": 38.12826023988994,
+        "median_us": 1349.0825,
+        "p05_us": 1329.9060499999998,
+        "p95_us": 1427.59645,
+        "p99_us": 1481.71706,
+        "min_us": 1227.784,
+        "max_us": 1837.054,
+        "inner_resets": 0
+      },
+      "cudagraph_fp32": {
+        "num_samples": 1500,
+        "mean_us": 487.84627200000006,
+        "std_us": 3.0629388348806685,
+        "median_us": 487.351,
+        "p05_us": 483.5745,
+        "p95_us": 493.8465,
+        "p99_us": 496.74161,
+        "min_us": 478.453,
+        "max_us": 505.343,
+        "inner_resets": 0
+      },
+      "wall_clock_s": 59.78376817703247
+    },
+    "1024": {
+      "num_agents": 1024,
+      "num_rollouts": 3,
+      "steps_per_rollout": 300,
+      "RL": {
+        "num_samples": 900,
+        "mean_us": 2542.005664444445,
+        "std_us": 55.52027758471821,
+        "median_us": 2533.1855,
+        "p05_us": 2499.152,
+        "p95_us": 2608.464,
+        "p99_us": 2720.94416,
+        "min_us": 2480.746,
+        "max_us": 3239.021,
+        "inner_resets": 0
+      },
+      "RL_pure_forward": {
+        "num_samples": 900,
+        "mean_us": 1461.1542033333335,
+        "std_us": 23.484716238973977,
+        "median_us": 1456.7645,
+        "p05_us": 1441.4444999999998,
+        "p95_us": 1492.475,
+        "p99_us": 1567.18852,
+        "min_us": 1427.215,
+        "max_us": 1807.119,
+        "inner_resets": 0
+      },
+      "cudagraph_fp32": {
+        "num_samples": 900,
+        "mean_us": 936.5554233333334,
+        "std_us": 2.3593082793402176,
+        "median_us": 936.234,
+        "p05_us": 933.57995,
+        "p95_us": 940.32345,
+        "p99_us": 945.6713100000001,
+        "min_us": 932.248,
+        "max_us": 950.766,
+        "inner_resets": 0
+      },
+      "wall_clock_s": 282.391695022583
+    }
+  }
+}
