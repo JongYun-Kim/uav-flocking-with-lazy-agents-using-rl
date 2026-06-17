@@ -7,8 +7,8 @@ encoder self-attention is ``O(n^2)``. This driver measures per-action-selection
 wall-clock latency as a function of flock size for three GPU inference paths and
 checks each against the environment's real-time control budget.
 
-Variants measured (GPU only)
-----------------------------
+Variants measured
+-----------------
 - ``RL``              -- full RLlib path: ``policy.compute_single_action`` (obs
                          preprocessing + batch build + forward + action-dist
                          sampling/clipping). The deployed "out-of-the-box" cost.
@@ -18,6 +18,10 @@ Variants measured (GPU only)
                          self-attention lives.
 - ``cudagraph_fp32``  -- the same fp32 NN forward, captured + replayed with
                          ``torch.cuda.CUDAGraph`` (kernel-launch overhead removed).
+                         CUDA-only; skipped on ``--device cpu``.
+
+``--device cpu`` runs the two NumPy/Torch-CPU-compatible variants (``RL`` and
+``RL_pure_forward``) with ``--torch_threads`` worker threads.
 
 Methodology matches ``benchmark.py`` / ``benchmark_cudagraph.py`` exactly (their
 timing functions are imported and reused): per-policy warmup, then
@@ -47,6 +51,11 @@ Usage
 -----
     CUDA_VISIBLE_DEVICES=0 python -m experiments.compute_benchmark.benchmark_scaling \
         --output experiments/compute_benchmark/results/scaling/latency_vs_n.json
+
+    # CPU sweep (RL + RL_pure_forward; cudagraph auto-skipped), 4 threads:
+    python -m experiments.compute_benchmark.benchmark_scaling \
+        --device cpu --torch_threads 4 \
+        --output experiments/compute_benchmark/results/scaling/latency_vs_n_cpu.json
 
     # smoke test (tiny sample counts, min + max size):
     CUDA_VISIBLE_DEVICES=0 python -m experiments.compute_benchmark.benchmark_scaling \
@@ -93,6 +102,13 @@ from experiments.compute_benchmark.benchmark_cudagraph import (  # noqa: E402
 DEFAULT_AGENTS = [8, 16, 20, 32, 64, 128, 256, 512, 1024]
 VARIANTS = ["RL", "RL_pure_forward", "cudagraph_fp32"]
 
+
+def default_variants(device: str) -> List[str]:
+    """All three on GPU; the two CPU-compatible ones on CPU (cudagraph is CUDA-only)."""
+    if device == "cuda":
+        return list(VARIANTS)
+    return ["RL", "RL_pure_forward"]
+
 # env control timestep (env/envs.py: self.dt default 0.1 s -> 10 Hz control)
 DT_S = 0.1
 REALTIME_BUDGET_US = DT_S * 1e6  # 100000.0
@@ -126,6 +142,8 @@ def measure_size(
     policy,
     n: int,
     *,
+    device: str,
+    variants: List[str],
     num_rollouts: int,
     steps_per_rollout: int,
     warmup_steps: int,
@@ -133,7 +151,7 @@ def measure_size(
     max_time_step: int,
     keep_raw: bool,
 ) -> Dict[str, object]:
-    """Run all three variants at one flock size, sequentially. Returns a dict
+    """Run the requested variants at one flock size, sequentially. Returns a dict
     keyed by variant name (each value is a timing summary or an ``error`` dict)."""
 
     import torch
@@ -148,55 +166,59 @@ def measure_size(
         "steps_per_rollout": steps_per_rollout,
     }
 
-    # ---- RL (full RLlib compute_single_action) ----
-    try:
-        s = time_policy(
-            algo="RL", env=env, policy=policy,
-            num_rollouts=num_rollouts, steps_per_rollout=steps_per_rollout,
-            warmup_steps=warmup_steps, base_seed=base_seed, device="cuda",
-        )
-        out["RL"] = _strip_raw(s, keep_raw)
-        print(f"    RL              mean={s['mean_us']:.1f}us  median={s['median_us']:.1f}us  "
+    def _report(name, s):
+        print(f"    {name:<15} mean={s['mean_us']:.1f}us  median={s['median_us']:.1f}us  "
               f"p95={s['p95_us']:.1f}us  p99={s['p99_us']:.1f}us  n={s['num_samples']}")
-    except Exception as e:  # noqa: BLE001 - record + continue, never silently drop
-        out["RL"] = {"error": f"{type(e).__name__}: {e}"}
-        print(f"    RL              FAILED: {type(e).__name__}: {e}")
+
+    # ---- RL (full RLlib compute_single_action) ----
+    if "RL" in variants:
+        try:
+            s = time_policy(
+                algo="RL", env=env, policy=policy,
+                num_rollouts=num_rollouts, steps_per_rollout=steps_per_rollout,
+                warmup_steps=warmup_steps, base_seed=base_seed, device=device,
+            )
+            out["RL"] = _strip_raw(s, keep_raw); _report("RL", s)
+        except Exception as e:  # noqa: BLE001 - record + continue, never silently drop
+            out["RL"] = {"error": f"{type(e).__name__}: {e}"}
+            print(f"    RL              FAILED: {type(e).__name__}: {e}")
 
     # ---- RL_pure_forward (raw NN forward) ----
-    try:
-        s = time_policy(
-            algo="RL_pure_forward", env=env, policy=policy,
-            num_rollouts=num_rollouts, steps_per_rollout=steps_per_rollout,
-            warmup_steps=warmup_steps, base_seed=base_seed, device="cuda",
-        )
-        out["RL_pure_forward"] = _strip_raw(s, keep_raw)
-        print(f"    RL_pure_forward mean={s['mean_us']:.1f}us  median={s['median_us']:.1f}us  "
-              f"p95={s['p95_us']:.1f}us  p99={s['p99_us']:.1f}us  n={s['num_samples']}")
-    except Exception as e:  # noqa: BLE001
-        out["RL_pure_forward"] = {"error": f"{type(e).__name__}: {e}"}
-        print(f"    RL_pure_forward FAILED: {type(e).__name__}: {e}")
+    if "RL_pure_forward" in variants:
+        try:
+            s = time_policy(
+                algo="RL_pure_forward", env=env, policy=policy,
+                num_rollouts=num_rollouts, steps_per_rollout=steps_per_rollout,
+                warmup_steps=warmup_steps, base_seed=base_seed, device=device,
+            )
+            out["RL_pure_forward"] = _strip_raw(s, keep_raw); _report("RL_pure_forward", s)
+        except Exception as e:  # noqa: BLE001
+            out["RL_pure_forward"] = {"error": f"{type(e).__name__}: {e}"}
+            print(f"    RL_pure_forward FAILED: {type(e).__name__}: {e}")
 
-    # ---- cudagraph_fp32 (NN forward, CUDA-graph captured) ----
-    forwarder = None
-    try:
-        net = _copy_model(policy, torch.float32)
-        forwarder = _CUDAGraphForward(net, n, torch.float32, "cuda", name="cudagraph_fp32")
-        s = time_variant(
-            forwarder, env,
-            num_rollouts=num_rollouts, steps_per_rollout=steps_per_rollout,
-            warmup_steps=warmup_steps, base_seed=base_seed,
-        )
-        out["cudagraph_fp32"] = _strip_raw(s, keep_raw)
-        print(f"    cudagraph_fp32  mean={s['mean_us']:.1f}us  median={s['median_us']:.1f}us  "
-              f"p95={s['p95_us']:.1f}us  p99={s['p99_us']:.1f}us  n={s['num_samples']}")
-    except Exception as e:  # noqa: BLE001
-        out["cudagraph_fp32"] = {"error": f"{type(e).__name__}: {e}"}
-        print(f"    cudagraph_fp32  FAILED: {type(e).__name__}: {e}")
-    finally:
-        if forwarder is not None:
-            del forwarder
-        torch.cuda.synchronize()
-        torch.cuda.empty_cache()
+    # ---- cudagraph_fp32 (NN forward, CUDA-graph captured) -- CUDA only ----
+    if "cudagraph_fp32" in variants:
+        if device != "cuda":
+            out["cudagraph_fp32"] = {"skipped": "CUDA-only variant; device is cpu"}
+        else:
+            forwarder = None
+            try:
+                net = _copy_model(policy, torch.float32)
+                forwarder = _CUDAGraphForward(net, n, torch.float32, "cuda", name="cudagraph_fp32")
+                s = time_variant(
+                    forwarder, env,
+                    num_rollouts=num_rollouts, steps_per_rollout=steps_per_rollout,
+                    warmup_steps=warmup_steps, base_seed=base_seed,
+                )
+                out["cudagraph_fp32"] = _strip_raw(s, keep_raw); _report("cudagraph_fp32", s)
+            except Exception as e:  # noqa: BLE001
+                out["cudagraph_fp32"] = {"error": f"{type(e).__name__}: {e}"}
+                print(f"    cudagraph_fp32  FAILED: {type(e).__name__}: {e}")
+            finally:
+                if forwarder is not None:
+                    del forwarder
+                torch.cuda.synchronize()
+                torch.cuda.empty_cache()
 
     return out
 
@@ -210,21 +232,23 @@ def run(args: argparse.Namespace) -> Dict[str, object]:
     from env.envs import LazyAgentsCentralized
     from models.lazy_allocator import MyRLlibTorchWrapper
 
-    if not torch.cuda.is_available():
+    if args.device == "cuda" and not torch.cuda.is_available():
         raise RuntimeError(
-            "CUDA is required (this driver measures GPU latency only). "
-            "Check CUDA_VISIBLE_DEVICES."
+            "--device cuda requested but CUDA is unavailable. Check "
+            "CUDA_VISIBLE_DEVICES."
         )
 
     # Small B=1 forwards oversubscribe a big-core box with torch's default
     # thread count; pin it (matches benchmark.py / benchmark_cudagraph.py).
+    # The thread count is the headline knob for CPU latency.
     if args.torch_threads and args.torch_threads > 0:
         torch.set_num_threads(args.torch_threads)
         try:
             torch.set_num_interop_threads(args.torch_threads)
         except RuntimeError:
             pass
-    torch.backends.cudnn.benchmark = True
+    if args.device == "cuda":
+        torch.backends.cudnn.benchmark = True
 
     ModelCatalog.register_custom_model("custom_model", MyRLlibTorchWrapper)
     register_env("lazy_env", lambda cfg: LazyAgentsCentralized(cfg))
@@ -234,23 +258,25 @@ def run(args: argparse.Namespace) -> Dict[str, object]:
     print(f"Loading policy from {args.checkpoint}")
     policy = Policy.from_checkpoint(args.checkpoint)
     policy.model.eval()
-    force_policy_device(policy, "cuda")
+    force_policy_device(policy, args.device)
     print(f"Policy device: {next(policy.model.parameters()).device}")
-    print(f"GPU: {torch.cuda.get_device_name(0)}")
 
     host_info = {
         "hostname": platform.node(),
         "machine": platform.machine(),
         "python": platform.python_version(),
         "torch": torch.__version__,
-        "cuda_available": True,
-        "gpu_name": torch.cuda.get_device_name(0),
-        "gpu_capability": list(torch.cuda.get_device_capability(0)),
+        "device": args.device,
+        "cuda_available": torch.cuda.is_available(),
         "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES"),
         "num_cpus": os.cpu_count(),
         "torch_num_threads": torch.get_num_threads(),
         "torch_num_interop_threads": torch.get_num_interop_threads(),
     }
+    if args.device == "cuda":
+        host_info["gpu_name"] = torch.cuda.get_device_name(0)
+        host_info["gpu_capability"] = list(torch.cuda.get_device_capability(0))
+        print(f"GPU: {host_info['gpu_name']}")
     try:
         host_info["cpu_model"] = _read_first_cpu_model()
     except Exception:
@@ -262,6 +288,8 @@ def run(args: argparse.Namespace) -> Dict[str, object]:
           f"(policy_net={model_info['policy_network_params']:,})")
 
     agents = args.agents if args.agents else DEFAULT_AGENTS
+    variants = args.variants if args.variants else default_variants(args.device)
+    print(f"Device: {args.device}  variants: {variants}")
 
     results: Dict[str, object] = {}
     for n in agents:
@@ -271,6 +299,8 @@ def run(args: argparse.Namespace) -> Dict[str, object]:
         t0 = time.time()
         row = measure_size(
             policy, n,
+            device=args.device,
+            variants=variants,
             num_rollouts=args.num_rollouts,
             steps_per_rollout=steps,
             warmup_steps=args.warmup_steps,
@@ -286,7 +316,7 @@ def run(args: argparse.Namespace) -> Dict[str, object]:
         "meta": {
             "description": "Inference latency vs flock size for the trained "
                            "Transformer policy (reviewer revision).",
-            "variants": VARIANTS,
+            "variants": variants,
             "agents": agents,
             "num_rollouts": args.num_rollouts,
             "steps_per_rollout": args.steps_per_rollout,  # None => adaptive
@@ -294,7 +324,8 @@ def run(args: argparse.Namespace) -> Dict[str, object]:
             "warmup_steps": args.warmup_steps,
             "base_seed": args.base_seed,
             "max_time_step": args.max_time_step,
-            "device": "cuda",
+            "device": args.device,
+            "torch_threads": args.torch_threads,
             "dt_s": DT_S,
             "realtime_budget_us": REALTIME_BUDGET_US,
             "complexity_note": "Encoder self-attention is O(n^2). RL_pure_forward "
@@ -315,6 +346,14 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--agents", type=int, nargs="*", default=None,
                         help=f"flock sizes to sweep (default: {DEFAULT_AGENTS})")
+    parser.add_argument("--device", type=str, default="cuda",
+                        choices=["cpu", "cuda"],
+                        help="inference device (default: cuda). cpu runs RL + "
+                             "RL_pure_forward only.")
+    parser.add_argument("--variants", type=str, nargs="*", default=None,
+                        choices=VARIANTS,
+                        help=f"subset of variants to run (default: all on cuda, "
+                             f"[RL, RL_pure_forward] on cpu)")
     parser.add_argument("--num_rollouts", type=int, default=3)
     parser.add_argument("--steps_per_rollout", type=int, default=None,
                         help="fixed timed samples per rollout; default None => "
@@ -332,6 +371,11 @@ def main():
         default=os.path.join(THIS_DIR, "results", "scaling", "latency_vs_n.json"),
     )
     args = parser.parse_args()
+
+    # Hide the GPU from torch *before* it is imported (run() imports torch) so a
+    # cpu run never initialises CUDA and is a clean CPU-only measurement.
+    if args.device == "cpu":
+        os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
     os.makedirs(os.path.dirname(args.output), exist_ok=True)
     doc = run(args)
